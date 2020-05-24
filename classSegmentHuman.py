@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
-
+g_gravity=np.array([0,0,-9.8])
 class bodySegment:
     def __init__(self,name,markerData):
         self.name=name
         self.proximalJointCentre=markerData["proximalJointCentre"]
         self.distalJointCentre=markerData["distalJointCentre"]
         self.segmentLengthCalculator()
+        self.listChildren=[]
     def segmentLengthCalculator(self,proximalJointCentre=None,distalJointCentre=None):
         if proximalJointCentre==None:
             proximalJointCentre=self.proximalJointCentre
@@ -20,6 +21,20 @@ class bodySegment:
         self.I_Sagittal=self.segmentMass*(self.segmentlength*DeLeva_BSIP_Table["Sagittal_r"][Gender][self.name]/100.0)**2
         self.I_Transverse=self.segmentMass*(self.segmentlength*DeLeva_BSIP_Table["Transverse_r"][Gender][self.name]/100.0)**2
         self.I_Longitudinal=self.segmentMass*(self.segmentlength*DeLeva_BSIP_Table["Longitudinal_r"][Gender][self.name]/100.0)**2
+    def insertChildren(self,listChildren):
+        self.listChildren+=listChildren
+    def proximalJointLoadCalculator(self):
+        loadFromAllChildren=0
+        for childSegment in self.listChildren:
+            loadFromAllChildren+=self.proximalJointLoadCalculator(childSegment)
+        forcesJointFromAllChildren=loadFromAllChildren[0:3]
+        momentJointFromAllChildren=loadFromAllChildren[3:]
+        self.forcesProximal=(self.accelerationMassCenter-g_gravity)*self.segmentMass-forcesJointFromAllChildren
+        self.momentsProximal=-np.cross(self.distalJointCentre-self.proximalJointCentre,forcesJointFromAllChildren) \
+                              -np.cross(self.CMPosition-self.proximalJointCentre,self.segmentMass*(g_gravity-self.accelerationMassCenter))\
+                             +np.matmul(self.inertialMatrix,self.angularVelocity)-momentJointFromAllChildren
+        return np.concatenate(self.forcesProximal,self.momentsProximal)
+
 class humanBody:
     def __init__(self,totalBodyMass,gender):
         self.totalBodyMass=totalBodyMass
