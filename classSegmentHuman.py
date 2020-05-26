@@ -1,26 +1,39 @@
 import numpy as np
 import pandas as pd
+from collections import deque
+
 g_gravity=np.array([0,0,-9.8])
 class bodySegment:
-    def __init__(self,name,markerData):
+    def __init__(self,name,markerData,Name_DeLeva_BSIP_Table='DeLevaTable.txt'):
         self.name=name
         self.proximalJointCentre=markerData["proximalJointCentre"]
         self.distalJointCentre=markerData["distalJointCentre"]
         self.segmentLengthCalculator()
-        self.listChildren=[]
+        self.listChildren=[] 
+        DeLeva_BSIP_Table_Data=pd.read_table(Name_DeLeva_BSIP_Table,header=None,sep='\s+')
+        self.DeLeva_BSIP_Table = pd.DataFrame(DeLeva_BSIP_Table_Data.values,
+               index = ['Head','Trunk','UPT','MPT','LPT','UpperArm',
+                        'ForeArm','Hand','Thigh','Shank','Foot'],
+               columns=pd.MultiIndex.from_product([['Mass','CMPosition','Sagittal_r','Transverse_r','Longitudinal_r'],['Female','Male']]))        
+        self.CMPositionList=deque(maxlen=5)         
+        self.timeLableKinematicsList=deque(maxlen=5)
+        self.velocityMassCenterList=deque(maxlen=5)       
+        self.accelerationMassCenterList =deque(maxlen=5)
     def segmentLengthCalculator(self,proximalJointCentre=None,distalJointCentre=None):
         if proximalJointCentre==None:
             proximalJointCentre=self.proximalJointCentre
             distalJointCentre=self.distalJointCentre
         self.segmentlength=np.sqrt(np.sum((proximalJointCentre-distalJointCentre)**2))  
-    def BSIP_Calculator(self,totalMass,Gender,DeLeva_BSIP_Table):
-        self.segmentMass=DeLeva_BSIP_Table["Mass"][Gender][self.name]*totalMass
+    def BSIP_Calculator(self,totalMass,Gender):
+        self.coefMassCenterPosition=self.DeLeva_BSIP_Table["CMPosition"][Gender][self.name]
+        self.segmentMass=self.DeLeva_BSIP_Table["Mass"][Gender][self.name]*totalMass
         self.CMPosition=self.proximalJointCentre + \
-                        DeLeva_BSIP_Table["CMPosition"][Gender][self.name]*(self.proximalJointCentre-
+                        self.coefMassCenterPosition*(self.proximalJointCentre-
                         self.proximalJointCentre)/100.0
-        self.I_Sagittal=self.segmentMass*(self.segmentlength*DeLeva_BSIP_Table["Sagittal_r"][Gender][self.name]/100.0)**2
-        self.I_Transverse=self.segmentMass*(self.segmentlength*DeLeva_BSIP_Table["Transverse_r"][Gender][self.name]/100.0)**2
-        self.I_Longitudinal=self.segmentMass*(self.segmentlength*DeLeva_BSIP_Table["Longitudinal_r"][Gender][self.name]/100.0)**2
+        self.I_Sagittal=self.segmentMass*(self.segmentlength*self.DeLeva_BSIP_Table["Sagittal_r"][Gender][self.name]/100.0)**2
+        self.I_Transverse=self.segmentMass*(self.segmentlength*self.DeLeva_BSIP_Table["Transverse_r"][Gender][self.name]/100.0)**2
+        self.I_Longitudinal=self.segmentMass*(self.segmentlength*self.DeLeva_BSIP_Table["Longitudinal_r"][Gender][self.name]/100.0)**2
+        self.inertialMatrix=np.array([[self.I_Sagittal,0,0],[0,self.I_Transverse,0],[0,0,self.I_Longitudinal]])
     def insertChildren(self,listChildren):
         self.listChildren+=listChildren
     def proximalJointLoadCalculator(self):
@@ -34,7 +47,25 @@ class bodySegment:
                               -np.cross(self.CMPosition-self.proximalJointCentre,self.segmentMass*(g_gravity-self.accelerationMassCenter))\
                              +np.matmul(self.inertialMatrix,self.angularVelocity)-momentJointFromAllChildren
         return np.concatenate(self.forcesProximal,self.momentsProximal)
-
+    def UpdateKinematicInformation(self,markerData,timeLable):
+        self.timeLableKinematicsList.append(timeLable)
+        self.proximalJointCentre=markerData["proximalJointCentre"]
+        self.distalJointCentre=markerData["distalJointCentre"]
+        self.CMPosition=self.proximalJointCentre + \
+                        self.coefMassCenterPosition*(self.proximalJointCentre-
+                        self.proximalJointCentre)/100.0
+        self.CMPositionList.append(self.CMPosition)        
+        if len(self.CMPositionList)>=2:
+            self.velocityCMPosition=(self.CMPositionList[-1]-self.CMPositionList[-2])\
+                /(self.timeLableKinematicsList[-1]-self.timeLableKinematicsList[-2])
+            self.velocityMassCenterList.append(self.velocityMassCenterList)
+        if len(self.CMPositionList)>=4:
+            self.accelerationMassCenter=(((self.CMPositionList[-1]-self.CMPositionList[-3])\
+                /(self.timeLableKinematicsList[-1]-self.timeLableKinematicsList[-3]))-\
+                    ((self.CMPositionList[-2]-self.CMPositionList[-4])\
+                /(self.timeLableKinematicsList[-2]-self.timeLableKinematicsList[-4])))\
+                    /(self.timeLableKinematicsList[-1]-self.timeLableKinematicsList[-2])
+            self.accelerationMassCenterList.append(self.accelerationMassCenter)  
 class humanBody:
     def __init__(self,totalBodyMass,gender):
         self.totalBodyMass=totalBodyMass
