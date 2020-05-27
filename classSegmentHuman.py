@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import math
 from collections import deque
 
 g_gravity=np.array([0,0,-9.8])
@@ -19,6 +20,9 @@ class bodySegment:
         self.timeLableKinematicsList=deque(maxlen=5)
         self.velocityMassCenterList=deque(maxlen=5)       
         self.accelerationMassCenterList =deque(maxlen=5)
+        self.Tranformation_GCS2LCS_List=deque(maxlen=5)
+        self.angularVelocityVectorList=deque(maxlen=5)
+        self.angularAccelatrationList=deque(maxlen=5)
     def segmentLengthCalculator(self,proximalJointCentre=None,distalJointCentre=None):
         if proximalJointCentre==None:
             proximalJointCentre=self.proximalJointCentre
@@ -45,9 +49,9 @@ class bodySegment:
         self.forcesProximal=(self.accelerationMassCenter-g_gravity)*self.segmentMass-forcesJointFromAllChildren
         self.momentsProximal=-np.cross(self.distalJointCentre-self.proximalJointCentre,forcesJointFromAllChildren) \
                               -np.cross(self.CMPosition-self.proximalJointCentre,self.segmentMass*(g_gravity-self.accelerationMassCenter))\
-                             +np.matmul(self.inertialMatrix,self.angularVelocity)-momentJointFromAllChildren
+                             +np.transpose(self.Tranformation_GCS2LCS_List[-3])@self.inertialMatrix@self.Tranformation_GCS2LCS_List[-3]@self.angularAccelatration-momentJointFromAllChildren
         return np.concatenate(self.forcesProximal,self.momentsProximal)
-    def UpdateKinematicInformation(self,markerData,timeLable):
+    def UpdateKinematicInformation(self,markerData,timeLable):        
         self.timeLableKinematicsList.append(timeLable)
         self.proximalJointCentre=markerData["proximalJointCentre"]
         self.distalJointCentre=markerData["distalJointCentre"]
@@ -66,6 +70,31 @@ class bodySegment:
                 /(self.timeLableKinematicsList[-2]-self.timeLableKinematicsList[-4])))\
                     /(self.timeLableKinematicsList[-1]-self.timeLableKinematicsList[-2])
             self.accelerationMassCenterList.append(self.accelerationMassCenter)  
+        ## to calculate the tranformation matrix from the global coordinate system to local system
+        ## the  are then calculated
+        if len(markerData)==2:
+            z_Axis_LCS=(self.distalJointCentre-self.proximalJointCentre)\
+                /np.linalg.norm(self.distalJointCentre-self.proximalJointCentre)
+            y_Axis_LCS=np.array([0,z_Axis_LCS[-1],z_Axis_LCS[-2]])\
+                /np.linalg.norm(np.array([0,z_Axis_LCS[-1],z_Axis_LCS[-2]]))
+            x_Axis_LCS=np.cross(y_Axis_LCS,z_Axis_LCS)
+            self.Tranformation_GCS2LCS=np.vstack((x_Axis_LCS,y_Axis_LCS,z_Axis_LCS))
+            self.Tranformation_GCS2LCS_List.append(self.Tranformation_GCS2LCS)
+        ## calculate the joint angular velocity
+        if len(self.Tranformation_GCS2LCS_List)>=3:
+            R_Delta=np.matmul(self.Tranformation_GCS2LCS_List[-1],self.Tranformation_GCS2LCS_List[-3])
+            delta=math.acos((R_Delta[0,0]+R_Delta[1,1]+R_Delta[2,2]-1)/2)
+            omiga=delta/(self.timeLableKinematicsList[-1]-self.timeLableKinematicsList[-3])
+            unitVector_V=np.array(R_Delta[1,2]-R_Delta[2,1],R_Delta[2,0]-R_Delta[0,2],R_Delta[0,1]-R_Delta[1,0])\
+                /(2.0*math.sin(delta))
+            vector_V_GCS=np.matmul(np.transpose(self.Tranformation_GCS2LCS_List[-3]),unitVector_V)
+            self.angularVelocityVector=omiga*vector_V_GCS
+            self.angularVelocityVectorList.append(self.angularVelocityVector)
+        if len(self.angularVelocityVectorList)>=2:
+            self.angularAccelatration=(self.angularVelocityVectorList[-1]-self.angularVelocityVectorList[-3])\
+                /(self.timeLableKinematicsList[-1]-self.timeLableKinematicsList[-3])
+            self.angularAccelatrationList.append(self.angularAccelatration)
+
 class humanBody:
     def __init__(self,totalBodyMass,gender):
         self.totalBodyMass=totalBodyMass
