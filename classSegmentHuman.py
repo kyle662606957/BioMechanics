@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import math
 from collections import deque
+import  re
 
 g_gravity=np.array([0,0,-9.8])
 class bodySegment:
@@ -18,39 +19,43 @@ class bodySegment:
                columns=pd.MultiIndex.from_product([['Mass','CMPosition','Sagittal_r','Transverse_r','Longitudinal_r'],['Female','Male']]))        
         self.CMPositionList=deque(maxlen=5)         
         self.timeLableKinematicsList=deque(maxlen=5)
+        self.timeLableKinematicsList.append(0)
         self.velocityMassCenterList=deque(maxlen=5)       
         self.accelerationMassCenterList =deque(maxlen=5)
         self.Tranformation_GCS2LCS_List=deque(maxlen=5)
         self.angularVelocityVectorList=deque(maxlen=5)
         self.angularAccelatrationList=deque(maxlen=5)
+        self.jointLoadFlag=False
     def segmentLengthCalculator(self,proximalJointCentre=None,distalJointCentre=None):
         if proximalJointCentre==None:
             proximalJointCentre=self.proximalJointCentre
             distalJointCentre=self.distalJointCentre
         self.segmentlength=np.sqrt(np.sum((proximalJointCentre-distalJointCentre)**2))  
     def BSIP_Calculator(self,totalMass,Gender):
-        self.coefMassCenterPosition=self.DeLeva_BSIP_Table["CMPosition"][Gender][self.name]
-        self.segmentMass=self.DeLeva_BSIP_Table["Mass"][Gender][self.name]*totalMass
+        nameIndex=re.sub("left|right", '', self.name)
+        self.coefMassCenterPosition=self.DeLeva_BSIP_Table["CMPosition"][Gender][nameIndex]
+        self.segmentMass=self.DeLeva_BSIP_Table["Mass"][Gender][nameIndex]*totalMass
         self.CMPosition=self.proximalJointCentre + \
                         self.coefMassCenterPosition*(self.proximalJointCentre-
                         self.proximalJointCentre)/100.0
-        self.I_Sagittal=self.segmentMass*(self.segmentlength*self.DeLeva_BSIP_Table["Sagittal_r"][Gender][self.name]/100.0)**2
-        self.I_Transverse=self.segmentMass*(self.segmentlength*self.DeLeva_BSIP_Table["Transverse_r"][Gender][self.name]/100.0)**2
-        self.I_Longitudinal=self.segmentMass*(self.segmentlength*self.DeLeva_BSIP_Table["Longitudinal_r"][Gender][self.name]/100.0)**2
+        self.I_Sagittal=self.segmentMass*(self.segmentlength*self.DeLeva_BSIP_Table["Sagittal_r"][Gender][nameIndex]/100.0)**2
+        self.I_Transverse=self.segmentMass*(self.segmentlength*self.DeLeva_BSIP_Table["Transverse_r"][Gender][nameIndex]/100.0)**2
+        self.I_Longitudinal=self.segmentMass*(self.segmentlength*self.DeLeva_BSIP_Table["Longitudinal_r"][Gender][nameIndex]/100.0)**2
         self.inertialMatrix=np.array([[self.I_Sagittal,0,0],[0,self.I_Transverse,0],[0,0,self.I_Longitudinal]])
     def insertChildren(self,listChildren):
         self.listChildren+=listChildren
     def proximalJointLoadCalculator(self):
-        loadFromAllChildren=0
-        for childSegment in self.listChildren:
-            loadFromAllChildren+=self.proximalJointLoadCalculator(childSegment)
-        forcesJointFromAllChildren=loadFromAllChildren[0:3]
-        momentJointFromAllChildren=loadFromAllChildren[3:]
-        self.forcesProximal=(self.accelerationMassCenter-g_gravity)*self.segmentMass-forcesJointFromAllChildren
-        self.momentsProximal=-np.cross(self.distalJointCentre-self.proximalJointCentre,forcesJointFromAllChildren) \
-                              -np.cross(self.CMPosition-self.proximalJointCentre,self.segmentMass*(g_gravity-self.accelerationMassCenter))\
-                             +np.transpose(self.Tranformation_GCS2LCS_List[-3])@self.inertialMatrix@self.Tranformation_GCS2LCS_List[-3]@self.angularAccelatration-momentJointFromAllChildren
-        return np.concatenate(self.forcesProximal,self.momentsProximal)
+        if self.jointLoadFlag==True:
+            loadFromAllChildren=np.zeros([6])
+            for childSegment in self.listChildren:
+                loadFromAllChildren+=childSegment.proximalJointLoadCalculator()
+            forcesJointFromAllChildren=loadFromAllChildren[0:3]
+            momentJointFromAllChildren=loadFromAllChildren[3:]
+            self.forcesProximal=(self.accelerationMassCenter-g_gravity)*self.segmentMass-forcesJointFromAllChildren
+            self.momentsProximal=-np.cross(self.distalJointCentre-self.proximalJointCentre,forcesJointFromAllChildren) \
+                                -np.cross(self.CMPosition-self.proximalJointCentre,self.segmentMass*(g_gravity-self.accelerationMassCenter))\
+                                +np.transpose(self.Tranformation_GCS2LCS_List[-3])@self.inertialMatrix@self.Tranformation_GCS2LCS_List[-3]@self.angularAccelatration-momentJointFromAllChildren
+            return np.concatenate((self.forcesProximal,self.momentsProximal))
     def UpdateKinematicInformation(self,markerData,timeLable):        
         self.timeLableKinematicsList.append(timeLable)
         self.proximalJointCentre=markerData["proximalJointCentre"]
@@ -83,14 +88,18 @@ class bodySegment:
         ## calculate the joint angular velocity
         if len(self.Tranformation_GCS2LCS_List)>=3:
             R_Delta=np.matmul(self.Tranformation_GCS2LCS_List[-1],self.Tranformation_GCS2LCS_List[-3])
-            delta=math.acos((R_Delta[0,0]+R_Delta[1,1]+R_Delta[2,2]-1)/2)
+            angleValue=(R_Delta[0,0]+R_Delta[1,1]+R_Delta[2,2]-1)/2
+            if abs(angleValue)>1:
+                angleValue=angleValue/abs(angleValue)
+            delta=math.acos(angleValue)
             omiga=delta/(self.timeLableKinematicsList[-1]-self.timeLableKinematicsList[-3])
-            unitVector_V=np.array(R_Delta[1,2]-R_Delta[2,1],R_Delta[2,0]-R_Delta[0,2],R_Delta[0,1]-R_Delta[1,0])\
+            unitVector_V=np.array([R_Delta[1,2]-R_Delta[2,1],R_Delta[2,0]-R_Delta[0,2],R_Delta[0,1]-R_Delta[1,0]])\
                 /(2.0*math.sin(delta))
             vector_V_GCS=np.matmul(np.transpose(self.Tranformation_GCS2LCS_List[-3]),unitVector_V)
             self.angularVelocityVector=omiga*vector_V_GCS
             self.angularVelocityVectorList.append(self.angularVelocityVector)
-        if len(self.angularVelocityVectorList)>=2:
+        if len(self.angularVelocityVectorList)>=3:
+            self.jointLoadFlag=True
             self.angularAccelatration=(self.angularVelocityVectorList[-1]-self.angularVelocityVectorList[-3])\
                 /(self.timeLableKinematicsList[-1]-self.timeLableKinematicsList[-3])
             self.angularAccelatrationList.append(self.angularAccelatration)
@@ -100,10 +109,21 @@ class humanBody:
         self.totalBodyMass=totalBodyMass
         self.gender=gender
     def bodySegmentsGenerator(self,jointsCoordinatesDict,segmentDefinitionDict):
+        self.segmentListDic={}
         for key in segmentDefinitionDict:
-            exec('self.'+key+'=bodySegment(\''+key+'\',{\'distalJointCentre\':jointsCoordinatesDict[\''+segmentDefinitionDict[key][0]+'\'],\'proximalJointCentre\':jointsCoordinatesDict[\''+segmentDefinitionDict[key][1]+'\']})')   
-
-
+            exec('self.segmentListDic[\''+key+'\']=bodySegment(\''+key+'\',{\'distalJointCentre\':jointsCoordinatesDict[\''+segmentDefinitionDict[key][0]+'\'],\'proximalJointCentre\':jointsCoordinatesDict[\''+segmentDefinitionDict[key][1]+'\']})')   
+        for segmentKey,segment in self.segmentListDic.items():
+            segment.segmentLengthCalculator()
+            segment.BSIP_Calculator(self.totalBodyMass,self.gender)
+        self.segmentListDic['Trunk'].insertChildren([self.segmentListDic['Head'],self.segmentListDic['leftUpperArm'],self.segmentListDic['rightUpperArm']])
+        self.segmentListDic['leftUpperArm'].insertChildren([self.segmentListDic['leftForeArm'],self.segmentListDic['leftHand']])
+        self.segmentListDic['rightUpperArm'].insertChildren([self.segmentListDic['rightForeArm'],self.segmentListDic['rightHand']])  
+    def bodySegmentsKinematicsUpdate(self,jointsCoordinatesDict,segmentDefinitionDict,timeLable):
+        for segmentKey,segment in self.segmentListDic.items():
+            segment.UpdateKinematicInformation({'proximalJointCentre':jointsCoordinatesDict[segmentDefinitionDict[segmentKey][1]],'distalJointCentre':jointsCoordinatesDict[segmentDefinitionDict[segmentKey][0]]},timeLable)
+    def bodyLumbarLoadIntersegmental(self):
+        return self.segmentListDic["Trunk"].proximalJointLoadCalculator()     
+            
 if __name__=="__main__":
     '''
     hand=bodySegment("Hand",{'proximalJointCentre':np.array([1,3,3]),'distalJointCentre':np.array([2,3,3])})
@@ -126,13 +146,21 @@ if __name__=="__main__":
         'R.Shoulder','R.Elbow',	'R.Wrist','R.Hand','L.Hip','L.Knee','L.Ankle','L.Foot','R.Hip',
         'R.Knee','R.Ankle','R.Foot']
         jointsCoordinatesDict={}
+        initializationFlag=True
+        timeLable=0
+        body1=humanBody(75,'Male')
         for line in dataLines:
+            timeLable+=1
             jointCoordinates=np.array(list(map(float,line.split('\t'))))
             for jointIndex,jointName in enumerate(listJoints):
-                jointsCoordinatesDict[jointName]=jointCoordinates[3*jointIndex:3*(jointIndex+1)]
-            body1=humanBody(75,'Male')
-            body1.bodySegmentsGenerator(jointsCoordinatesDict,segmentDefinitionDict)
-            print(body1)
+                jointsCoordinatesDict[jointName]=jointCoordinates[3*jointIndex:3*(jointIndex+1)]            
+            if initializationFlag:
+                body1.bodySegmentsGenerator(jointsCoordinatesDict,segmentDefinitionDict)
+                initializationFlag=False
+            else:
+                body1.bodySegmentsKinematicsUpdate(jointsCoordinatesDict,segmentDefinitionDict,timeLable)
+                print(body1.bodyLumbarLoadIntersegmental())
+            
 
                 
 
