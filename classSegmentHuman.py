@@ -108,9 +108,9 @@ class bodySegment:
                 /(self.timeLableKinematicsList[-1]-self.timeLableKinematicsList[-3])
             self.angularAccelatrationList.append(self.angularAccelatration)
     def drawSegment(self,axToDraw):
-        y=-np.array([self.proximalJointCentre[0],self.distalJointCentre[0]])
-        z=np.array([self.proximalJointCentre[1],self.distalJointCentre[1]])
-        x=np.array([self.proximalJointCentre[2],self.distalJointCentre[2]])
+        x=np.array([self.proximalJointCentre[0],self.distalJointCentre[0]])
+        y=np.array([self.proximalJointCentre[1],self.distalJointCentre[1]])
+        z=np.array([self.proximalJointCentre[2],self.distalJointCentre[2]])
         #axToDraw.redraw_in_frame(x,y,z)
         axToDraw.plot(x,y,z)
 
@@ -148,8 +148,7 @@ class humanBody:
         self.axToDraw.set_zlabel("z")
         #self.fig.canvas.flush_events()
         for segmentKey,segment in self.segmentListDic.items():
-            segment.drawSegment(self.axToDraw)
-        
+            segment.drawSegment(self.axToDraw)        
         plt.pause(0.01)
         
         
@@ -183,8 +182,10 @@ if __name__=="__main__":
         for line in dataLines:
             timeLable+=1
             jointCoordinates=np.array(list(map(float,line.split('\t'))))
+            ##from the motion capture devices coodinates to the calculation coordinates
+            tranformationMatrix=np.array([[0,0,1],[-1,0,0],[0,1,0]])
             for jointIndex,jointName in enumerate(listJoints):
-                jointsCoordinatesDict[jointName]=jointCoordinates[3*jointIndex:3*(jointIndex+1)]            
+                jointsCoordinatesDict[jointName]=tranformationMatrix@jointCoordinates[3*jointIndex:3*(jointIndex+1)]            
             if initializationFlag:
                 body1.bodySegmentsGenerator(jointsCoordinatesDict,segmentDefinitionDict)
                 initializationFlag=False
