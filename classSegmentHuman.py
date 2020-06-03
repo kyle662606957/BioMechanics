@@ -3,6 +3,9 @@ import pandas as pd
 import math
 from collections import deque
 import  re
+import matplotlib as mpl
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
 
 g_gravity=np.array([0,0,-9.8])
 class bodySegment:
@@ -26,6 +29,7 @@ class bodySegment:
         self.angularVelocityVectorList=deque(maxlen=5)
         self.angularAccelatrationList=deque(maxlen=5)
         self.jointLoadFlag=False
+        
     def segmentLengthCalculator(self,proximalJointCentre=None,distalJointCentre=None):
         if proximalJointCentre==None:
             proximalJointCentre=self.proximalJointCentre
@@ -103,11 +107,22 @@ class bodySegment:
             self.angularAccelatration=(self.angularVelocityVectorList[-1]-self.angularVelocityVectorList[-3])\
                 /(self.timeLableKinematicsList[-1]-self.timeLableKinematicsList[-3])
             self.angularAccelatrationList.append(self.angularAccelatration)
+    def drawSegment(self,axToDraw):
+        y=-np.array([self.proximalJointCentre[0],self.distalJointCentre[0]])
+        z=np.array([self.proximalJointCentre[1],self.distalJointCentre[1]])
+        x=np.array([self.proximalJointCentre[2],self.distalJointCentre[2]])
+        #axToDraw.redraw_in_frame(x,y,z)
+        axToDraw.plot(x,y,z)
 
 class humanBody:
-    def __init__(self,totalBodyMass,gender):
+    def __init__(self,totalBodyMass,gender,Visualization=True):
         self.totalBodyMass=totalBodyMass
         self.gender=gender
+        if Visualization:
+            self.fig=plt.figure()      
+            self.axToDraw=self.fig.gca(projection='3d')
+            
+            
     def bodySegmentsGenerator(self,jointsCoordinatesDict,segmentDefinitionDict):
         self.segmentListDic={}
         for key in segmentDefinitionDict:
@@ -122,7 +137,23 @@ class humanBody:
         for segmentKey,segment in self.segmentListDic.items():
             segment.UpdateKinematicInformation({'proximalJointCentre':jointsCoordinatesDict[segmentDefinitionDict[segmentKey][1]],'distalJointCentre':jointsCoordinatesDict[segmentDefinitionDict[segmentKey][0]]},timeLable)
     def bodyLumbarLoadIntersegmental(self):
-        return self.segmentListDic["Trunk"].proximalJointLoadCalculator()     
+        return self.segmentListDic["Trunk"].proximalJointLoadCalculator()
+    def drawBodySegment(self):
+        self.axToDraw.cla()
+        self.axToDraw.set_xlim([-1,1])
+        self.axToDraw.set_ylim([-1,1])
+        self.axToDraw.set_zlim([-1,1])
+        self.axToDraw.set_xlabel("x")
+        self.axToDraw.set_ylabel("y")
+        self.axToDraw.set_zlabel("z")
+        #self.fig.canvas.flush_events()
+        for segmentKey,segment in self.segmentListDic.items():
+            segment.drawSegment(self.axToDraw)
+        
+        plt.pause(0.01)
+        
+        
+
             
 if __name__=="__main__":
     '''
@@ -159,6 +190,7 @@ if __name__=="__main__":
                 initializationFlag=False
             else:
                 body1.bodySegmentsKinematicsUpdate(jointsCoordinatesDict,segmentDefinitionDict,timeLable)
+                body1.drawBodySegment()
                 print(body1.bodyLumbarLoadIntersegmental())
             
 
