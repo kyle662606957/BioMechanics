@@ -192,7 +192,11 @@ if __name__=="__main__":
             else:
                 body1.bodySegmentsKinematicsUpdate(jointsCoordinatesDict,segmentDefinitionDict,timeLable)
                 body1.drawBodySegment()
-                print(body1.bodyLumbarLoadIntersegmental())
+                load=body1.bodyLumbarLoadIntersegmental()
+                try:
+                    print("Lumbar Load Calculation:\n  Forces (N):  {} \n  Moments(N.m):{} \n".format(load[0:3],load[3:]))
+                except:
+                    pass
             
 
                 
