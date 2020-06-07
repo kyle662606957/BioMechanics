@@ -38,9 +38,9 @@ class bodySegment:
     def BSIP_Calculator(self,totalMass,Gender):
         nameIndex=re.sub("left|right", '', self.name)
         self.coefMassCenterPosition=self.DeLeva_BSIP_Table["CMPosition"][Gender][nameIndex]
-        self.segmentMass=self.DeLeva_BSIP_Table["Mass"][Gender][nameIndex]*totalMass
+        self.segmentMass=self.DeLeva_BSIP_Table["Mass"][Gender][nameIndex]*totalMass/100.0
         self.CMPosition=self.proximalJointCentre + \
-                        self.coefMassCenterPosition*(self.proximalJointCentre-
+                        self.coefMassCenterPosition*(self.distalJointCentre-
                         self.proximalJointCentre)/100.0
         self.I_Sagittal=self.segmentMass*(self.segmentlength*self.DeLeva_BSIP_Table["Sagittal_r"][Gender][nameIndex]/100.0)**2
         self.I_Transverse=self.segmentMass*(self.segmentlength*self.DeLeva_BSIP_Table["Transverse_r"][Gender][nameIndex]/100.0)**2
@@ -65,7 +65,7 @@ class bodySegment:
         self.proximalJointCentre=markerData["proximalJointCentre"]
         self.distalJointCentre=markerData["distalJointCentre"]
         self.CMPosition=self.proximalJointCentre + \
-                        self.coefMassCenterPosition*(self.proximalJointCentre-
+                        self.coefMassCenterPosition*(self.distalJointCentre-
                         self.proximalJointCentre)/100.0
         self.CMPositionList.append(self.CMPosition)        
         if len(self.CMPositionList)>=2:
