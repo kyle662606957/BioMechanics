@@ -1,6 +1,6 @@
 # BioMechanics
 
-With the motion data gathered by Kinect, the intersegmental forces are calculated as shown in the video. The inertial parameters are calculated with the De Leva Dataset, and a top-down inverse dynamics model was used to solve the forces. 
+With the motion data gathered by Kinect, the intersegmental forces are calculated as shown in the video. The inertial parameters are calculated with the De Leva Dataset, and a top-down inverse dynamics model are programmed to solve the forces. 
 
   
 
