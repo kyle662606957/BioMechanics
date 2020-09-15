@@ -5,8 +5,9 @@ With the motion data gathered by Kinect, the intersegmental forces are calculate
 
 2.Usage
 ===
- class bodySegment: To define a bodysegment with the necessary information
- class humanBody: To construct a human model with the several bodySegments
+ a)class bodySegment: To define a bodysegment with the necessary information
+ 
+ b)class humanBody: To construct a human model with the several bodySegments
  
 3.Example
 ===
