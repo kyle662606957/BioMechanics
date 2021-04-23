@@ -8,6 +8,7 @@ import math
 from collections import deque
 import  re
 import matplotlib as mpl
+from matplotlib import  animation
 
 
 g_gravity=np.array([0,0,-9.8])
@@ -58,10 +59,10 @@ class bodySegment:
                 loadFromAllChildren+=childSegment.proximalJointLoadCalculator()
             forcesJointFromAllChildren=loadFromAllChildren[0:3]
             momentJointFromAllChildren=loadFromAllChildren[3:]
-            self.forcesProximal=(self.accelerationMassCenter-g_gravity)*self.segmentMass-forcesJointFromAllChildren
-            self.momentsProximal=-np.cross(self.distalJointCentre-self.proximalJointCentre,forcesJointFromAllChildren) \
+            self.forcesProximal=(self.accelerationMassCenter-g_gravity)*self.segmentMass+forcesJointFromAllChildren
+            self.momentsProximal=-np.cross(self.distalJointCentre-self.proximalJointCentre,-forcesJointFromAllChildren) \
                                 -np.cross(self.CMPosition-self.proximalJointCentre,self.segmentMass*(g_gravity-self.accelerationMassCenter))\
-                                +np.transpose(self.Tranformation_GCS2LCS_List[-3])@self.inertialMatrix@self.Tranformation_GCS2LCS_List[-3]@self.angularAccelatration-momentJointFromAllChildren
+                                +np.transpose(self.Tranformation_GCS2LCS_List[-3])@self.inertialMatrix@self.Tranformation_GCS2LCS_List[-3]@self.angularAccelatration+momentJointFromAllChildren
             return np.concatenate((self.forcesProximal,self.momentsProximal))
     def UpdateKinematicInformation(self,markerData,timeLable):        
         self.timeLableKinematicsList.append(timeLable)
@@ -143,9 +144,9 @@ class humanBody:
         return self.segmentListDic["Trunk"].proximalJointLoadCalculator()
     def drawBodySegment(self):
         self.axToDraw.cla()
-        self.axToDraw.set_xlim([-1,1])
-        self.axToDraw.set_ylim([-1,1])
-        self.axToDraw.set_zlim([-1,1])
+        self.axToDraw.set_xlim([-300,300])
+        self.axToDraw.set_ylim([800,1500])
+        self.axToDraw.set_zlim([0,2000])
         self.axToDraw.set_xlabel("x")
         self.axToDraw.set_ylabel("y")
         self.axToDraw.set_zlabel("z")
@@ -155,11 +156,11 @@ class humanBody:
         plt.pause(0.01)
         
 
-results="/home/jindong/machineLearning/Human-Pose-Estimation/logs/eval_ibhgc_vol_softmax_VolumetricTriangulationNet@19.04.2021-17:33:12/checkpoints/0000/results.pkl"
+results="/home/jindong/machineLearning/Human-Pose-Estimation/logs/eval_ibhgc_vol_softmax_VolumetricTriangulationNet@13.04.2021-14:32:43/checkpoints/0000/results.pkl"
 with open(results, 'rb') as f:
     data = pickle.load(f)
 #data keypoints_3d [frames,joints,positionxyz]
-keypoints_position=data['keypoints_3d']
+keypoints_position=data['keypoints_3d']/1000 # change the unit from mm to m
 
 segmentDefinitionDict={'Head':['Head','ShoulderMid'],'Trunk':['ShoulderMid','HipCenter'],
                         'leftUpperArm':['L.Elbow','L.Shoulder'],'leftForeArm':['L.Wrist','L.Elbow'],#'leftHand':['L.Hand','L.Wrist'],'leftFoot':['L.Foot','L.Ankle'],
@@ -174,8 +175,11 @@ jointsCoordinatesDict={}
 initializationFlag=True
 timeLable=0
 body1=humanBody(75,'Male')
-for frame in keypoints_position:
-    timeLable+=1
+# for frame in keypoints_position:
+def calcul_plot(i):
+    frame=keypoints_position[i]
+    global timeLable,initializationFlag,body1
+    timeLable+=0.01 # 100 frames per second
     #jointCoordinates=np.array(list(map(float,line.split('\t'))))
     ##from the motion capture devices coodinates to the calculation coordinates
     #tranformationMatrix=np.array([[0,0,1],[-1,0,0],[0,1,0]])
@@ -194,3 +198,7 @@ for frame in keypoints_position:
             print("Lumbar Load Calculation:\n  Forces (N):  {} \n  Moments(N.m):{} \n".format(load[0:3],load[3:]))
         except:
             pass
+anim =animation.FuncAnimation(body1.fig, calcul_plot,frames=len(keypoints_position))
+#Writer = animation.writers['ffmpeg']
+#writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
+anim.save('myAnimation.gif', fps=30)
