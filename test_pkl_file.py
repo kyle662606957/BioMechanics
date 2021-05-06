@@ -1,4 +1,3 @@
-
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,6 +9,7 @@ from collections import deque
 import  re
 import matplotlib as mpl
 from matplotlib import  animation
+from celluloid import Camera
 
 
 g_gravity=np.array([0,0,-9.8])
@@ -117,15 +117,18 @@ class bodySegment:
         y=np.array([self.proximalJointCentre[1],self.distalJointCentre[1]])
         z=np.array([self.proximalJointCentre[2],self.distalJointCentre[2]])
         #axToDraw.redraw_in_frame(x,y,z)
-        axToDraw.plot(x,y,z)
-
+        im=axToDraw.plot(x,y,z)        
+        return im
 class humanBody:
     def __init__(self,totalBodyMass,gender,Visualization=True):
         self.totalBodyMass=totalBodyMass
         self.gender=gender
+        self.imgs=[]
+        
         if Visualization:
             self.fig=plt.figure()      
             self.axToDraw=self.fig.gca(projection='3d')
+            self.camera=Camera(self.fig)
             
             
     def bodySegmentsGenerator(self,jointsCoordinatesDict,segmentDefinitionDict):
@@ -153,8 +156,10 @@ class humanBody:
         self.axToDraw.set_zlabel("z")
         #self.fig.canvas.flush_events()
         for segmentKey,segment in self.segmentListDic.items():
-            segment.drawSegment(self.axToDraw)        
-        plt.pause(0.01)
+            im=segment.drawSegment(self.axToDraw)
+            self.imgs.append(im)
+            self.camera.snap()
+        #plt.pause(0.01)
         
 
 results="/home/jindong/machineLearning/Human-Pose-Estimation/logs/eval_ibhgc_vol_softmax_VolumetricTriangulationNet@13.04.2021-14:32:43/checkpoints/0000/results.pkl"
@@ -176,10 +181,7 @@ jointsCoordinatesDict={}
 initializationFlag=True
 timeLable=0
 body1=humanBody(75,'Male')
-# for frame in keypoints_position:
-def calcul_plot(i):
-    frame=keypoints_position[i]
-    global timeLable,initializationFlag,body1
+for frame in keypoints_position[0:1000]:
     timeLable+=0.01 # 100 frames per second
     #jointCoordinates=np.array(list(map(float,line.split('\t'))))
     ##from the motion capture devices coodinates to the calculation coordinates
@@ -199,7 +201,14 @@ def calcul_plot(i):
             print("Lumbar Load Calculation:\n  Forces (N):  {} \n  Moments(N.m):{} \n".format(load[0:3],load[3:]))
         except:
             pass
-anim =animation.FuncAnimation(body1.fig, calcul_plot,frames=len(keypoints_position))
-#Writer = animation.writers['ffmpeg']
+
+ani = animation.ArtistAnimation(body1.fig, body1.imgs, interval=50, blit=True, repeat_delay=1000)
+writer=animation.PillowWriter(fps=5)
+ani.save('animation_1.gif',writer)
+# #ani.save("movie.mp4")
+# # anim =animation.FuncAnimation(body1.fig, calcul_plot,frames=len(keypoints_position))
+# # #Writer = animation.writers['ffmpeg']
 #writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
-anim.save('myAnimation.gif', fps=30)
+writer=animation.PillowWriter(fps=5)
+animation = body1.camera.animate()
+animation.save('animation_2.gif',writer)
