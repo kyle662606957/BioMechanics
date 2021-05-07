@@ -1,3 +1,4 @@
+# %%
 import numpy as np
 import pandas as pd
 import math
@@ -59,6 +60,7 @@ class bodySegment:
             self.momentsProximal=-np.cross(self.distalJointCentre-self.proximalJointCentre,forcesJointFromAllChildren) \
                                 -np.cross(self.CMPosition-self.proximalJointCentre,self.segmentMass*(g_gravity-self.accelerationMassCenter))\
                                 +np.transpose(self.Tranformation_GCS2LCS_List[-3])@self.inertialMatrix@self.Tranformation_GCS2LCS_List[-3]@self.angularAccelatration-momentJointFromAllChildren
+            print("{} Load Calculation:\n  Forces (N):  {} \n  Moments(N.m):{} \n".format(self.name,self.forcesProximal,self.momentsProximal))
             return np.concatenate((self.forcesProximal,self.momentsProximal))
     def UpdateKinematicInformation(self,markerData,timeLable):        
         self.timeLableKinematicsList.append(timeLable)
@@ -119,8 +121,10 @@ class humanBody:
         self.totalBodyMass=totalBodyMass
         self.gender=gender
         if Visualization:
+            plt.ion()
             self.fig=plt.figure()      
             self.axToDraw=self.fig.gca(projection='3d')
+            plt.show()
             
             
     def bodySegmentsGenerator(self,jointsCoordinatesDict,segmentDefinitionDict):
@@ -148,8 +152,9 @@ class humanBody:
         self.axToDraw.set_zlabel("z")
         #self.fig.canvas.flush_events()
         for segmentKey,segment in self.segmentListDic.items():
-            segment.drawSegment(self.axToDraw)        
-        plt.pause(0.01)
+            segment.drawSegment(self.axToDraw)      
+            plt.show()  
+        plt.pause(0.0001)
         
         
 
@@ -193,11 +198,15 @@ if __name__=="__main__":
                 body1.bodySegmentsKinematicsUpdate(jointsCoordinatesDict,segmentDefinitionDict,timeLable)
                 body1.drawBodySegment()
                 load=body1.bodyLumbarLoadIntersegmental()
+                '''
                 try:
                     print("Lumbar Load Calculation:\n  Forces (N):  {} \n  Moments(N.m):{} \n".format(load[0:3],load[3:]))
                 except:
                     pass
+                '''
             
 
                 
 
+
+# %%

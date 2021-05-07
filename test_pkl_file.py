@@ -117,18 +117,22 @@ class bodySegment:
         y=np.array([self.proximalJointCentre[1],self.distalJointCentre[1]])
         z=np.array([self.proximalJointCentre[2],self.distalJointCentre[2]])
         #axToDraw.redraw_in_frame(x,y,z)
-        im=axToDraw.plot(x,y,z)        
-        return im
+        axToDraw.plot(x,y,z)        
+        # return im
 class humanBody:
-    def __init__(self,totalBodyMass,gender,Visualization=True):
+    def __init__(self,totalBodyMass,gender,video_name="human_movement.gif"):
         self.totalBodyMass=totalBodyMass
         self.gender=gender
-        self.imgs=[]
+        # self.imgs=[]
         
-        if Visualization:
+        if video_name is not None:
             self.fig=plt.figure()      
             self.axToDraw=self.fig.gca(projection='3d')
-            self.camera=Camera(self.fig)
+            self.axToDraw.set_box_aspect(np.array([0.6,0.7,2.0]))
+            # self.axToDraw.set_aspect(aspect='equal')
+            # self.camera=Camera(self.fig)
+            self.moviewriter = animation.PillowWriter()
+            self.moviewriter.setup(self.fig, video_name, dpi=100)
             
             
     def bodySegmentsGenerator(self,jointsCoordinatesDict,segmentDefinitionDict):
@@ -148,21 +152,23 @@ class humanBody:
         return self.segmentListDic["Trunk"].proximalJointLoadCalculator()
     def drawBodySegment(self):
         self.axToDraw.cla()
-        self.axToDraw.set_xlim([-300,300])
-        self.axToDraw.set_ylim([800,1500])
-        self.axToDraw.set_zlim([0,2000])
+        self.axToDraw.set_xlim([-0.300,0.300])
+        self.axToDraw.set_ylim([0.800,1.500])
+        self.axToDraw.set_zlim([0,2.000])
         self.axToDraw.set_xlabel("x")
         self.axToDraw.set_ylabel("y")
         self.axToDraw.set_zlabel("z")
         #self.fig.canvas.flush_events()
         for segmentKey,segment in self.segmentListDic.items():
             im=segment.drawSegment(self.axToDraw)
-            self.imgs.append(im)
-            self.camera.snap()
-        #plt.pause(0.01)
+            # self.imgs.append([im])
+        plt.pause(0.0001)
+        self.moviewriter.grab_frame()
+        # self.camera.snap()
+        # plt.pause(0.0001)
         
 
-results="/home/jindong/machineLearning/Human-Pose-Estimation/logs/eval_ibhgc_vol_softmax_VolumetricTriangulationNet@13.04.2021-14:32:43/checkpoints/0000/results.pkl"
+results=r"D:\Programing Project\BioMechanics\BioMechanics\results_AlgebraicTriangulationNet.pkl"
 with open(results, 'rb') as f:
     data = pickle.load(f)
 #data keypoints_3d [frames,joints,positionxyz]
@@ -181,7 +187,8 @@ jointsCoordinatesDict={}
 initializationFlag=True
 timeLable=0
 body1=humanBody(75,'Male')
-for frame in keypoints_position[0:1000]:
+
+for frame in keypoints_position:
     timeLable+=0.01 # 100 frames per second
     #jointCoordinates=np.array(list(map(float,line.split('\t'))))
     ##from the motion capture devices coodinates to the calculation coordinates
@@ -201,14 +208,17 @@ for frame in keypoints_position[0:1000]:
             print("Lumbar Load Calculation:\n  Forces (N):  {} \n  Moments(N.m):{} \n".format(load[0:3],load[3:]))
         except:
             pass
+body1.moviewriter.finish()
 
-ani = animation.ArtistAnimation(body1.fig, body1.imgs, interval=50, blit=True, repeat_delay=1000)
-writer=animation.PillowWriter(fps=5)
-ani.save('animation_1.gif',writer)
+# ani = animation.ArtistAnimation(body1.fig, body1.imgs, interval=50, blit=True, repeat_delay=1000)
+# writer=animation.PillowWriter(fps=5)
+# ani.save('animation_1.gif',writer)
+
 # #ani.save("movie.mp4")
 # # anim =animation.FuncAnimation(body1.fig, calcul_plot,frames=len(keypoints_position))
 # # #Writer = animation.writers['ffmpeg']
 #writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
-writer=animation.PillowWriter(fps=5)
-animation = body1.camera.animate()
-animation.save('animation_2.gif',writer)
+
+# writer=animation.ImageMagickFileWriter(fps=5)
+# animation1 = body1.camera.animate()
+# animation1.save('animation_2.gif',writer=moviewriter)
