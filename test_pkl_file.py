@@ -131,7 +131,7 @@ class humanBody:
             self.axToDraw.set_box_aspect(np.array([0.6,0.7,2.0]))
             # self.axToDraw.set_aspect(aspect='equal')
             # self.camera=Camera(self.fig)
-            self.moviewriter = animation.PillowWriter()
+            self.moviewriter = animation.PillowWriter(fps=100)
             self.moviewriter.setup(self.fig, video_name, dpi=100)
             
             
@@ -168,7 +168,7 @@ class humanBody:
         # plt.pause(0.0001)
         
 
-results=r"D:\Programing Project\BioMechanics\BioMechanics\results_AlgebraicTriangulationNet.pkl"
+results=r"/home/jindong/machineLearning/Human-Pose-Estimation/results_VolumetricTriangulation.pkl"
 with open(results, 'rb') as f:
     data = pickle.load(f)
 #data keypoints_3d [frames,joints,positionxyz]
