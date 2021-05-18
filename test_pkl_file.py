@@ -124,6 +124,8 @@ class humanBody:
         self.totalBodyMass=totalBodyMass
         self.gender=gender
         # self.imgs=[]
+        self.lumbarForce=[]
+        self.lumbarMoment=[]
         
         if video_name is not None:
             self.fig=plt.figure()      
@@ -149,7 +151,11 @@ class humanBody:
         for segmentKey,segment in self.segmentListDic.items():
             segment.UpdateKinematicInformation({'proximalJointCentre':jointsCoordinatesDict[segmentDefinitionDict[segmentKey][1]],'distalJointCentre':jointsCoordinatesDict[segmentDefinitionDict[segmentKey][0]]},timeLable)
     def bodyLumbarLoadIntersegmental(self):
-        return self.segmentListDic["Trunk"].proximalJointLoadCalculator()
+        force_moment=self.segmentListDic["Trunk"].proximalJointLoadCalculator()
+        if force_moment is not None:
+            self.lumbarForce.append(np.linalg.norm(force_moment[:3],ord=2))
+            self.lumbarMoment.append(np.linalg.norm(force_moment[3:],ord=2))
+            return force_moment
     def drawBodySegment(self):
         self.axToDraw.cla()
         self.axToDraw.set_xlim([-0.300,0.300])
@@ -168,7 +174,7 @@ class humanBody:
         # plt.pause(0.0001)
         
 
-results=r"/home/jindong/machineLearning/Human-Pose-Estimation/results_VolumetricTriangulation.pkl"
+results=r"Data/results_VolumetricTriangulation.pkl"
 with open(results, 'rb') as f:
     data = pickle.load(f)
 #data keypoints_3d [frames,joints,positionxyz]
@@ -188,7 +194,7 @@ initializationFlag=True
 timeLable=0
 body1=humanBody(75,'Male')
 
-for frame in keypoints_position:
+for frame in keypoints_position[0:1000]:
     timeLable+=0.01 # 100 frames per second
     #jointCoordinates=np.array(list(map(float,line.split('\t'))))
     ##from the motion capture devices coodinates to the calculation coordinates
@@ -209,7 +215,20 @@ for frame in keypoints_position:
         except:
             pass
 body1.moviewriter.finish()
+fig,axs=plt.subplots(2)
+axs[0].plot(np.arange(len(body1.lumbarForce))*0.01,np.array(body1.lumbarForce))
+axs[0].set_title('Lumbar Force')
+axs[0].set_title('Lumbar Force')
+axs[0].set(xlabel='Time/s',ylabel='Force/N')
+axs[0].set_ylim([0,1000])
+axs[1].plot(np.arange(len(body1.lumbarForce))*0.01,np.array(body1.lumbarMoment))
+axs[1].set_title('Lumbar Moment')
+axs[1].set(xlabel='Time/s',ylabel="Moment/(N.m)")
+axs[1].set_ylim([0,1000])
 
+for ax in axs.flat:
+    ax.label_outer()
+plt.savefig("momentForce.png")
 # ani = animation.ArtistAnimation(body1.fig, body1.imgs, interval=50, blit=True, repeat_delay=1000)
 # writer=animation.PillowWriter(fps=5)
 # ani.save('animation_1.gif',writer)
