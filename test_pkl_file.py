@@ -10,6 +10,7 @@ import  re
 import matplotlib as mpl
 from matplotlib import  animation
 from celluloid import Camera
+import scipy.signal as ssig
 
 
 g_gravity=np.array([0,0,-9.8])
@@ -120,7 +121,7 @@ class bodySegment:
         axToDraw.plot(x,y,z)        
         # return im
 class humanBody:
-    def __init__(self,totalBodyMass,gender,video_name="human_movement.gif"):
+    def __init__(self,totalBodyMass,gender,video_name="human_movement_gt_alg.gif"):
         self.totalBodyMass=totalBodyMass
         self.gender=gender
         # self.imgs=[]
@@ -168,13 +169,14 @@ class humanBody:
         for segmentKey,segment in self.segmentListDic.items():
             im=segment.drawSegment(self.axToDraw)
             # self.imgs.append([im])
-        plt.pause(0.0001)
+        # plt.pause(0.0001)
         self.moviewriter.grab_frame()
         # self.camera.snap()
         # plt.pause(0.0001)
         
-
+name_output="momentForce_gt"
 results=r"Data/results_VolumetricTriangulation.pkl"
+results=r"/home/jindong/machineLearning/Human-Pose-Estimation/logs/ibhgc_alg_AlgebraicTriangulationNet@21.05.2021-16:05:00/checkpoints/0034/results.pkl"
 with open(results, 'rb') as f:
     data = pickle.load(f)
 #data keypoints_3d [frames,joints,positionxyz]
@@ -192,9 +194,9 @@ listJoints=['R.Ankle','R.Knee','R.Hip','L.Hip','L.Knee','L.Ankle','HipCenter','S
 jointsCoordinatesDict={}
 initializationFlag=True
 timeLable=0
-body1=humanBody(75,'Male')
+body1=humanBody(75,'Male',video_name=name_output+".gif")
 
-for frame in keypoints_position[0:1000]:
+for frame in keypoints_position:#[0:2000]:
     timeLable+=0.01 # 100 frames per second
     #jointCoordinates=np.array(list(map(float,line.split('\t'))))
     ##from the motion capture devices coodinates to the calculation coordinates
@@ -216,19 +218,19 @@ for frame in keypoints_position[0:1000]:
             pass
 body1.moviewriter.finish()
 fig,axs=plt.subplots(2)
-axs[0].plot(np.arange(len(body1.lumbarForce))*0.01,np.array(body1.lumbarForce))
+axs[0].plot(np.arange(len(body1.lumbarForce))*0.01,ssig.medfilt(np.array(body1.lumbarForce),101))
 axs[0].set_title('Lumbar Force')
 axs[0].set_title('Lumbar Force')
 axs[0].set(xlabel='Time/s',ylabel='Force/N')
-axs[0].set_ylim([0,1000])
-axs[1].plot(np.arange(len(body1.lumbarForce))*0.01,np.array(body1.lumbarMoment))
+axs[0].set_ylim([400,600])
+axs[1].plot(np.arange(len(body1.lumbarForce))*0.01,ssig.medfilt(np.array(body1.lumbarMoment),101))
 axs[1].set_title('Lumbar Moment')
 axs[1].set(xlabel='Time/s',ylabel="Moment/(N.m)")
-axs[1].set_ylim([0,1000])
+axs[1].set_ylim([0,150])
 
 for ax in axs.flat:
     ax.label_outer()
-plt.savefig("momentForce.png")
+plt.savefig(name_output+".png")
 # ani = animation.ArtistAnimation(body1.fig, body1.imgs, interval=50, blit=True, repeat_delay=1000)
 # writer=animation.PillowWriter(fps=5)
 # ani.save('animation_1.gif',writer)
